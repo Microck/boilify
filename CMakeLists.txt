@@ -42,7 +42,7 @@ set(PLUGIN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/${PLUGIN_DIR}")
 add_library(BoilEffect MODULE ${SOURCES})
 
 set_target_properties(BoilEffect PROPERTIES
-  OUTPUT_NAME "BoilEffect.ofx"
+  OUTPUT_NAME "Boilify.ofx"
   PREFIX ""
   SUFFIX ""
   ARCHIVE_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"

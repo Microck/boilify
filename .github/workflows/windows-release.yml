@@ -51,11 +51,17 @@ jobs:
           New-Item -ItemType Directory -Path "$root/dist" | Out-Null
 
           Copy-Item -Recurse -Force "$root/Boilify.ofx.bundle" "$root/dist/Boilify.ofx.bundle"
-          if (Test-Path "$root/dist/Boilify.ofx.bundle/Linux-x86-64") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/Linux-x86-64" }
-          if (Test-Path "$root/dist/Boilify.ofx.bundle/MacOS") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/MacOS" }
-          New-Item -ItemType Directory -Force -Path "$root/dist/Boilify.ofx.bundle/Win64" | Out-Null
 
-          Copy-Item -Force "$root/build/Win64/BoilEffect.ofx" "$root/dist/Boilify.ofx.bundle/Win64/BoilEffect.ofx"
+          # Ensure bundle structure matches OpenFX packaging recommendations.
+          if (Test-Path "$root/dist/Boilify.ofx.bundle/Linux-x86-64") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/Linux-x86-64" }
+          if (Test-Path "$root/dist/Boilify.ofx.bundle/Win64") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/Win64" }
+          if (Test-Path "$root/dist/Boilify.ofx.bundle/MacOS") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/MacOS" }
+          if (Test-Path "$root/dist/Boilify.ofx.bundle/Contents/MacOS") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/Contents/MacOS" }
+          if (Test-Path "$root/dist/Boilify.ofx.bundle/Contents/Linux-x86-64") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/Contents/Linux-x86-64" }
+
+          New-Item -ItemType Directory -Force -Path "$root/dist/Boilify.ofx.bundle/Contents/Win64" | Out-Null
+
+          Copy-Item -Force "$root/build/Win64/Boilify.ofx" "$root/dist/Boilify.ofx.bundle/Contents/Win64/Boilify.ofx"
           Copy-Item -Force "$root/README.md" "$root/dist/README.md"
           Copy-Item -Force "$root/LICENSE" "$root/dist/LICENSE"
           Copy-Item -Force "$root/install.bat" "$root/dist/install.bat"
