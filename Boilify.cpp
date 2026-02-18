@@ -38,6 +38,28 @@ static OfxImageEffectSuiteV1* gEffectHost = NULL;
 static OfxPropertySuiteV1* gPropHost = NULL;
 static OfxParameterSuiteV1* gParamHost = NULL;
 
+static OfxStatus ensureCoreSuites(void) {
+    if(!gHost) return kOfxStatErrMissingHostFeature;
+    if(!gEffectHost) {
+        gEffectHost = (OfxImageEffectSuiteV1*)gHost->fetchSuite(gHost->host, kOfxImageEffectSuite, 1);
+    }
+    if(!gPropHost) {
+        gPropHost = (OfxPropertySuiteV1*)gHost->fetchSuite(gHost->host, kOfxPropertySuite, 1);
+    }
+    if(!gEffectHost || !gPropHost) return kOfxStatErrMissingHostFeature;
+    return kOfxStatOK;
+}
+
+static OfxStatus ensureParamSuite(void) {
+    OfxStatus st = ensureCoreSuites();
+    if(st != kOfxStatOK) return st;
+    if(!gParamHost) {
+        gParamHost = (OfxParameterSuiteV1*)gHost->fetchSuite(gHost->host, kOfxParameterSuite, 1);
+    }
+    if(!gParamHost) return kOfxStatErrMissingHostFeature;
+    return kOfxStatOK;
+}
+
 static float hash(float x, float y, int seed) {
     float n = sinf(x * 12.9898f + y * 78.233f + seed * 43.758f) * 43758.5453f;
     return n - floorf(n);
@@ -64,6 +86,9 @@ static float perlin(float x, float y, int seed) {
 }
 
 static OfxStatus createInstance(OfxImageEffectHandle effect, OfxPropertySetHandle) {
+    OfxStatus st = ensureParamSuite();
+    if(st != kOfxStatOK) return st;
+
     OfxPropertySetHandle effectProps;
     gEffectHost->getPropertySet(effect, &effectProps);
     
@@ -87,6 +112,9 @@ static OfxStatus createInstance(OfxImageEffectHandle effect, OfxPropertySetHandl
 }
 
 static OfxStatus destroyInstance(OfxImageEffectHandle effect, OfxPropertySetHandle) {
+    OfxStatus st = ensureCoreSuites();
+    if(st != kOfxStatOK) return st;
+
     OfxPropertySetHandle effectProps;
     gEffectHost->getPropertySet(effect, &effectProps);
     
@@ -98,6 +126,9 @@ static OfxStatus destroyInstance(OfxImageEffectHandle effect, OfxPropertySetHand
 }
 
 static OfxStatus describe(OfxImageEffectHandle effect) {
+    OfxStatus st = ensureCoreSuites();
+    if(st != kOfxStatOK) return st;
+
     OfxPropertySetHandle effectProps;
     gEffectHost->getPropertySet(effect, &effectProps);
     
@@ -116,6 +147,9 @@ static OfxStatus describe(OfxImageEffectHandle effect) {
 }
 
 static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHandle) {
+    OfxStatus st = ensureParamSuite();
+    if(st != kOfxStatOK) return st;
+
     OfxPropertySetHandle props;
     
     gEffectHost->clipDefine(effect, kOfxImageEffectOutputClipName, &props);
@@ -165,6 +199,9 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
 }
 
 static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inArgs, OfxPropertySetHandle) {
+    OfxStatus st = ensureParamSuite();
+    if(st != kOfxStatOK) return st;
+
     OfxPropertySetHandle effectProps;
     gEffectHost->getPropertySet(instance, &effectProps);
     
@@ -276,23 +313,22 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
 }
 
 static OfxStatus onLoad(void) {
-    if(!gHost) return kOfxStatErrMissingHostFeature;
-    
-    gEffectHost = (OfxImageEffectSuiteV1*)gHost->fetchSuite(gHost->host, kOfxImageEffectSuite, 1);
-    gPropHost = (OfxPropertySuiteV1*)gHost->fetchSuite(gHost->host, kOfxPropertySuite, 1);
-    gParamHost = (OfxParameterSuiteV1*)gHost->fetchSuite(gHost->host, kOfxParameterSuite, 1);
-    
-    if(!gEffectHost || !gPropHost || !gParamHost)
-        return kOfxStatErrMissingHostFeature;
-    return kOfxStatOK;
+    // Some hosts may not expose all suites at load time; fetch the core suites
+    // and defer optional ones until they're actually needed.
+    return ensureCoreSuites();
 }
 
 static OfxStatus pluginMain(const char* action, const void* handle, OfxPropertySetHandle inArgs, OfxPropertySetHandle outArgs) {
     try {
         OfxImageEffectHandle effect = (OfxImageEffectHandle)handle;
-        
+
         if(strcmp(action, kOfxActionLoad) == 0) {
             return onLoad();
+        }
+        // Be defensive: some hosts may call other actions even if load wasn't
+        // called (or if load did not run yet).
+        if(ensureCoreSuites() != kOfxStatOK) {
+            return kOfxStatErrMissingHostFeature;
         }
         else if(strcmp(action, kOfxActionCreateInstance) == 0) {
             return createInstance(effect, inArgs);
