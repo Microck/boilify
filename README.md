@@ -1,10 +1,21 @@
-# boilify
+<div align="center">
+  <img src="Boilify.ofx.bundle/Contents/Resources/com.boilify.effect.png" width="150" alt="boilify logo" />
 
-<p align="center">
-  <img src="Boilify.ofx.bundle/Contents/Resources/com.boilify.effect.png" alt="Boilify logo" width="180" />
-</p>
+  <h1>Boilify</h1>
 
-heat distortion plugin for DaVinci Resolve Studio 20+.
+  <p><strong>heat distortion OpenFX plugin for DaVinci Resolve Studio 20+</strong></p>
+
+  <p>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="license" />
+    </a>
+    <img src="https://img.shields.io/badge/host-davinci%20resolve-111111.svg?style=flat-square" alt="DaVinci Resolve" />
+    <img src="https://img.shields.io/badge/build-cmake-064F8C.svg?style=flat-square" alt="cmake" />
+    <img src="https://img.shields.io/badge/lang-c%2B%2B-00599C.svg?style=flat-square" alt="c++" />
+  </p>
+
+  <br />
+</div>
 
 ## install
 
