@@ -31,20 +31,29 @@ html, body {
 .controls {
   background: #000;
   border-top: 1px solid #333;
-  padding: 16px 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  padding: 12px 20px;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px 24px;
-  align-items: center;
+  align-items: flex-start;
+}
+
+.sliders {
+  display: contents;
+}
+
+.toggles {
+  display: contents;
 }
 
 .field {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 140px;
 }
 
-.field label {
+.field label:first-child {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -55,7 +64,7 @@ html, body {
 
 .field input[type="range"] {
   flex: 1;
-  min-width: 60px;
+  min-width: 80px;
   height: 4px;
   -webkit-appearance: none;
   appearance: none;
@@ -137,10 +146,11 @@ select {
 }
 
 .export {
-  grid-column: 1 / -1;
   display: flex;
   gap: 10px;
   align-items: center;
+  width: 100%;
+  flex-basis: 100%;
   padding-top: 8px;
   border-top: 1px solid #222;
   margin-top: 4px;
@@ -153,9 +163,9 @@ select {
   color: #fff;
   font-family: monospace;
   font-size: 11px;
-  padding: 8px;
+  padding: 6px;
   resize: none;
-  height: 50px;
+  height: 40px;
   border-radius: 2px;
 }
 
@@ -179,6 +189,7 @@ select {
   font-size: 11px;
   cursor: pointer;
   border-radius: 2px;
+  white-space: nowrap;
 }
 
 .fileLabel input { display: none; }

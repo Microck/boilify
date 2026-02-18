@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdint>
 #include "ofxImageEffect.h"
+#include "ofxMultiThread.h"
 
 #if defined _WIN32
   #define EXPORT OfxExport
@@ -13,6 +14,7 @@ static OfxHost* gHost = NULL;
 static OfxImageEffectSuiteV1* gEffectHost = NULL;
 static OfxPropertySuiteV1* gPropHost = NULL;
 static OfxParameterSuiteV1* gParamHost = NULL;
+static OfxMultiThreadSuiteV1* gThreadHost = NULL;
 
 static constexpr int kQualityFast = 0;
 static constexpr int kQualityHigh = 1;
@@ -24,6 +26,7 @@ static OfxStatus onLoad(void) {
     gEffectHost = (OfxImageEffectSuiteV1*)gHost->fetchSuite(gHost->host, kOfxImageEffectSuite, 1);
     gPropHost = (OfxPropertySuiteV1*)gHost->fetchSuite(gHost->host, kOfxPropertySuite, 1);
     gParamHost = (OfxParameterSuiteV1*)gHost->fetchSuite(gHost->host, kOfxParameterSuite, 1);
+    gThreadHost = (OfxMultiThreadSuiteV1*)gHost->fetchSuite(gHost->host, kOfxMultiThreadSuite, 1);
     if (!gEffectHost || !gPropHost || !gParamHost) return kOfxStatErrMissingHostFeature;
     return kOfxStatOK;
 }
@@ -38,6 +41,7 @@ static OfxStatus describe(OfxImageEffectHandle effect) {
     gPropHost->propSetString(props, kOfxImageEffectPropSupportedPixelDepths, 1, kOfxBitDepthShort);
     gPropHost->propSetString(props, kOfxImageEffectPropSupportedPixelDepths, 2, kOfxBitDepthFloat);
     gPropHost->propSetString(props, kOfxImageEffectPropSupportedContexts, 0, kOfxImageEffectContextFilter);
+    gPropHost->propSetString(props, kOfxImageEffectPropRenderThreadSafety, 0, kOfxImageEffectRenderFullySafe);
     return kOfxStatOK;
 }
 
@@ -61,7 +65,7 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
     gPropHost->propSetDouble(props, kOfxParamPropDisplayMin, 0, 0.0);
     gPropHost->propSetDouble(props, kOfxParamPropDisplayMax, 0, 20.0);
 
-    gParamHost->paramDefine(params, kOfxParamTypeDouble, "density", &props);
+    gParamHost->paramDefine(params, kOfxParamTypeDouble, "size", &props);
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Size");
     gPropHost->propSetDouble(props, kOfxParamPropDefault, 0, 30.0);
     gPropHost->propSetDouble(props, kOfxParamPropMin, 0, 1.0);
@@ -74,23 +78,26 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
     gPropHost->propSetDouble(props, kOfxParamPropDefault, 0, 1.0);
     gPropHost->propSetDouble(props, kOfxParamPropMin, 0, 0.0);
     gPropHost->propSetDouble(props, kOfxParamPropMax, 0, 6.0);
-    gPropHost->propSetString(props, kOfxParamPropHint, 0, "Multiplies how quickly the boil pattern changes.");
 
-    gParamHost->paramDefine(params, kOfxParamTypeInteger, "frames", &props);
+    gParamHost->paramDefine(params, kOfxParamTypeInteger, "boilFps", &props);
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Boil FPS");
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 12);
     gPropHost->propSetInt(props, kOfxParamPropMin, 0, 1);
     gPropHost->propSetInt(props, kOfxParamPropMax, 0, 48);
     gPropHost->propSetInt(props, kOfxParamPropDisplayMin, 0, 1);
     gPropHost->propSetInt(props, kOfxParamPropDisplayMax, 0, 24);
-    gPropHost->propSetString(props, kOfxParamPropHint, 0, "Posterize-time style boil rate (frames per second). Typical: 4-12.");
 
     gParamHost->paramDefine(params, kOfxParamTypeInteger, "complexity", &props);
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Complexity");
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 3);
     gPropHost->propSetInt(props, kOfxParamPropMin, 0, 1);
     gPropHost->propSetInt(props, kOfxParamPropMax, 0, 6);
-    gPropHost->propSetString(props, kOfxParamPropHint, 0, "More layers of noise (higher = more detail, slower).");
+
+    gParamHost->paramDefine(params, kOfxParamTypeInteger, "seed", &props);
+    gPropHost->propSetString(props, kOfxPropLabel, 0, "Seed");
+    gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 0);
+    gPropHost->propSetInt(props, kOfxParamPropMin, 0, 0);
+    gPropHost->propSetInt(props, kOfxParamPropMax, 0, 9999);
 
     gParamHost->paramDefine(params, kOfxParamTypeChoice, "noise", &props);
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Noise");
@@ -98,22 +105,15 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
     gPropHost->propSetString(props, kOfxParamPropChoiceOption, 0, "Smooth");
     gPropHost->propSetString(props, kOfxParamPropChoiceOption, 1, "Ridged");
 
-    gParamHost->paramDefine(params, kOfxParamTypeDouble, "seed", &props);
-    gPropHost->propSetString(props, kOfxPropLabel, 0, "Seed");
-    gPropHost->propSetDouble(props, kOfxParamPropDefault, 0, 0.0);
-    gPropHost->propSetDouble(props, kOfxParamPropMin, 0, 0.0);
-    gPropHost->propSetDouble(props, kOfxParamPropMax, 0, 9999.0);
-
-    gParamHost->paramDefine(params, kOfxParamTypeBoolean, "animate", &props);
-    gPropHost->propSetString(props, kOfxPropLabel, 0, "Animate");
-    gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 1);
-
     gParamHost->paramDefine(params, kOfxParamTypeChoice, "quality", &props);
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Quality");
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, kQualityFast);
     gPropHost->propSetString(props, kOfxParamPropChoiceOption, 0, "Fast");
     gPropHost->propSetString(props, kOfxParamPropChoiceOption, 1, "High");
-    gPropHost->propSetString(props, kOfxParamPropHint, 0, "Fast improves preview speed. High gives smoother distortion.");
+
+    gParamHost->paramDefine(params, kOfxParamTypeBoolean, "animate", &props);
+    gPropHost->propSetString(props, kOfxPropLabel, 0, "Animate");
+    gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 1);
 
     return kOfxStatOK;
 }
@@ -148,11 +148,6 @@ static inline float hashFast(int x, int y, int seed) {
     return (float)(h & 0x00ffffffU) * (1.0f / 16777216.0f);
 }
 
-static inline float hashHigh(float x, float y, int seed) {
-    float n = sinf(x * 12.9898f + y * 78.233f + seed * 43.758f) * 43758.5453f;
-    return n - floorf(n);
-}
-
 static float perlinFast(float x, float y, int seed) {
     int x0 = fastFloor(x);
     int y0 = fastFloor(y);
@@ -164,25 +159,7 @@ static float perlinFast(float x, float y, int seed) {
     float n10 = hashFast(x0 + 1, y0, seed);
     float n01 = hashFast(x0, y0 + 1, seed);
     float n11 = hashFast(x0 + 1, y0 + 1, seed);
-    float nx0 = n00 + sx * (n10 - n00);
-    float nx1 = n01 + sx * (n11 - n01);
-    return nx0 + sy * (nx1 - nx0);
-}
-
-static float perlinHigh(float x, float y, int seed) {
-    float x0 = floorf(x);
-    float y0 = floorf(y);
-    float fx = x - x0;
-    float fy = y - y0;
-    float sx = fx * fx * (3.0f - 2.0f * fx);
-    float sy = fy * fy * (3.0f - 2.0f * fy);
-    float n00 = hashHigh(x0, y0, seed);
-    float n10 = hashHigh(x0 + 1.0f, y0, seed);
-    float n01 = hashHigh(x0, y0 + 1.0f, seed);
-    float n11 = hashHigh(x0 + 1.0f, y0 + 1.0f, seed);
-    float nx0 = n00 + sx * (n10 - n00);
-    float nx1 = n01 + sx * (n11 - n01);
-    return nx0 + sy * (nx1 - nx0);
+    return n00 + sx * (n10 - n00) + sy * (n01 + sx * (n11 - n01) - n00 - sx * (n10 - n00));
 }
 
 static inline float applyNoiseType(float value, int noiseType) {
@@ -191,29 +168,71 @@ static inline float applyNoiseType(float value, int noiseType) {
     return 1.0f - fabsf(centered);
 }
 
-static float fbm(float x, float y, int seed, int octaves, int noiseType, int qualityMode) {
-    octaves = octaves < 1 ? 1 : (octaves > 6 ? 6 : octaves);
-
+static float fbm(float x, float y, int seed, int octaves, int noiseType) {
     float sum = 0.0f;
     float amp = 1.0f;
     float ampSum = 0.0f;
     float freq = 1.0f;
 
     for (int i = 0; i < octaves; ++i) {
-        int octaveSeed = seed + i * 101;
-        float n = (qualityMode == kQualityHigh)
-            ? perlinHigh(x * freq, y * freq, octaveSeed)
-            : perlinFast(x * freq, y * freq, octaveSeed);
-        n = applyNoiseType(n, noiseType);
-
+        float n = applyNoiseType(perlinFast(x * freq, y * freq, seed + i * 101), noiseType);
         sum += n * amp;
         ampSum += amp;
-
         amp *= 0.5f;
         freq *= 2.0f;
     }
 
     return (ampSum > 0.0f) ? (sum / ampSum) : 0.0f;
+}
+
+struct RenderArgs {
+    OfxImageEffectHandle instance;
+    char* srcPtr;
+    char* dstPtr;
+    OfxRectI srcRect;
+    OfxRectI dstRect;
+    OfxRectI window;
+    int srcRowBytes;
+    int dstRowBytes;
+    int pixelBytes;
+    float strength;
+    float invSize;
+    int seedX;
+    int seedY;
+    int complexity;
+    int noiseType;
+};
+
+static void renderSlice(void* vargs, int threadId, int nThreads) {
+    RenderArgs* args = (RenderArgs*)vargs;
+
+    int dy = args->window.y2 - args->window.y1;
+    int y1 = args->window.y1 + threadId * dy / nThreads;
+    int y2 = args->window.y1 + ((threadId + 1) * dy / nThreads < dy ? (threadId + 1) * dy / nThreads : dy);
+
+    for (int y = y1; y < y2; y++) {
+        char* dstRow = args->dstPtr + (ptrdiff_t)(y - args->dstRect.y1) * args->dstRowBytes;
+        float ny = (float)(y - args->dstRect.y1) * args->invSize;
+
+        for (int x = args->window.x1; x < args->window.x2; x++) {
+            int dstX = x - args->dstRect.x1;
+            float nx = (float)dstX * args->invSize;
+
+            float fx = fbm(nx, ny, args->seedX, args->complexity, args->noiseType) * 2.0f - 1.0f;
+            float fy = fbm(nx, ny, args->seedY, args->complexity, args->noiseType) * 2.0f - 1.0f;
+
+            int srcX = x + (int)(fx * args->strength);
+            int srcY = y + (int)(fy * args->strength);
+
+            srcX = srcX < args->srcRect.x1 ? args->srcRect.x1 : (srcX >= args->srcRect.x2 ? args->srcRect.x2 - 1 : srcX);
+            srcY = srcY < args->srcRect.y1 ? args->srcRect.y1 : (srcY >= args->srcRect.y2 ? args->srcRect.y2 - 1 : srcY);
+
+            char* srcRow = args->srcPtr + (ptrdiff_t)(srcY - args->srcRect.y1) * args->srcRowBytes;
+            std::memcpy(dstRow + (ptrdiff_t)dstX * args->pixelBytes,
+                        srcRow + (ptrdiff_t)(srcX - args->srcRect.x1) * args->pixelBytes,
+                        (size_t)args->pixelBytes);
+        }
+    }
 }
 
 static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inArgs, OfxPropertySetHandle) {
@@ -236,28 +255,27 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     OfxParamSetHandle paramSet;
     gEffectHost->getParamSet(instance, &paramSet);
 
-    OfxParamHandle strengthParam, densityParam, speedParam, seedParam, animateParam, qualityParam;
-    OfxParamHandle framesParam, complexityParam, noiseParam;
+    OfxParamHandle strengthParam, sizeParam, speedParam, seedParam, animateParam, qualityParam;
+    OfxParamHandle boilFpsParam, complexityParam, noiseParam;
     gParamHost->paramGetHandle(paramSet, "strength", &strengthParam, NULL);
-    gParamHost->paramGetHandle(paramSet, "density", &densityParam, NULL);
+    gParamHost->paramGetHandle(paramSet, "size", &sizeParam, NULL);
     gParamHost->paramGetHandle(paramSet, "speed", &speedParam, NULL);
     gParamHost->paramGetHandle(paramSet, "seed", &seedParam, NULL);
     gParamHost->paramGetHandle(paramSet, "animate", &animateParam, NULL);
     gParamHost->paramGetHandle(paramSet, "quality", &qualityParam, NULL);
-    gParamHost->paramGetHandle(paramSet, "frames", &framesParam, NULL);
+    gParamHost->paramGetHandle(paramSet, "boilFps", &boilFpsParam, NULL);
     gParamHost->paramGetHandle(paramSet, "complexity", &complexityParam, NULL);
     gParamHost->paramGetHandle(paramSet, "noise", &noiseParam, NULL);
 
-    double strength, size, speed, seed;
-    int animate, qualityMode;
-    int frames, complexity, noiseType;
+    double strength, size, speed;
+    int seed, animate, qualityMode, boilFps, complexity, noiseType;
     gParamHost->paramGetValue(strengthParam, &strength);
-    gParamHost->paramGetValue(densityParam, &size);
+    gParamHost->paramGetValue(sizeParam, &size);
     gParamHost->paramGetValue(speedParam, &speed);
     gParamHost->paramGetValue(seedParam, &seed);
     gParamHost->paramGetValue(animateParam, &animate);
     gParamHost->paramGetValue(qualityParam, &qualityMode);
-    gParamHost->paramGetValue(framesParam, &frames);
+    gParamHost->paramGetValue(boilFpsParam, &boilFps);
     gParamHost->paramGetValue(complexityParam, &complexity);
     gParamHost->paramGetValue(noiseParam, &noiseType);
 
@@ -268,11 +286,10 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     }
     if (!(frameRate > 0.0)) frameRate = 24.0;
 
-    const double seconds = (double)time / frameRate;
-    const double boilFps = (frames < 1) ? 1.0 : (double)frames;
-    const double stepIndexD = animate ? floor(seconds * boilFps * (speed <= 0.0 ? 0.0 : speed)) : 0.0;
-    const int stepIndex = (int)stepIndexD;
-    const int seedInt = (int)seed;
+    const double seconds = time / frameRate;
+    const double fps = (boilFps < 1) ? 1.0 : (double)boilFps;
+    const int stepIndex = animate ? (int)floor(seconds * fps * (speed > 0.0 ? speed : 0.0)) : 0;
+    const int stepWrapped = ((stepIndex % 32768) + 32768) % 32768;
 
     int srcRowBytes, dstRowBytes;
     OfxRectI srcRect, dstRect;
@@ -290,43 +307,34 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     int bytesPerComponent = 4;
     if (srcDepth && strcmp(srcDepth, kOfxBitDepthByte) == 0) bytesPerComponent = 1;
     else if (srcDepth && strcmp(srcDepth, kOfxBitDepthShort) == 0) bytesPerComponent = 2;
-    const int pixelBytes = bytesPerComponent * 4;
 
-    const float strengthF = (float)strength;
-    const float sizeF = (float)size;
-    const float invSize = 1.0f / (sizeF < 1.0f ? 1.0f : sizeF);
+    RenderArgs args;
+    args.instance = instance;
+    args.srcPtr = (char*)srcPtr;
+    args.dstPtr = (char*)dstPtr;
+    args.srcRect = srcRect;
+    args.dstRect = dstRect;
+    args.window = window;
+    args.srcRowBytes = srcRowBytes;
+    args.dstRowBytes = dstRowBytes;
+    args.pixelBytes = bytesPerComponent * 4;
+    args.strength = (float)strength;
+    args.invSize = 1.0f / (float)(size < 1.0 ? 1.0 : size);
+    args.seedX = seed + stepWrapped * 1013;
+    args.seedY = seed + stepWrapped * 1013 + 1999;
+    args.complexity = complexity < 1 ? 1 : (complexity > 6 ? 6 : complexity);
+    args.noiseType = noiseType;
 
-    const int stepLoop = 32768;
-    const int stepWrapped = (stepIndex % stepLoop + stepLoop) % stepLoop;
-    const int seedBase = seedInt + stepWrapped * 1013;
-    const int seedX = seedBase + 0;
-    const int seedY = seedBase + 1999;
-
-    for (int y = window.y1; y < window.y2; y++) {
-        if (gEffectHost->abort(instance)) break;
-        char* dstRow = (char*)dstPtr + (ptrdiff_t)(y - dstRect.y1) * dstRowBytes;
-        const float ny = (float)(y - dstRect.y1) * invSize;
-
-        for (int x = window.x1; x < window.x2; x++) {
-            const int dstX = x - dstRect.x1;
-            const float nx = (float)dstX * invSize;
-
-            float fx = fbm(nx, ny, seedX, complexity, noiseType, qualityMode);
-            float fy = fbm(nx, ny, seedY, complexity, noiseType, qualityMode);
-
-            fx = fx * 2.0f - 1.0f;
-            fy = fy * 2.0f - 1.0f;
-
-            int srcX = x + (int)(fx * strengthF);
-            int srcY = y + (int)(fy * strengthF);
-            srcX = srcX < srcRect.x1 ? srcRect.x1 : (srcX >= srcRect.x2 ? srcRect.x2 - 1 : srcX);
-            srcY = srcY < srcRect.y1 ? srcRect.y1 : (srcY >= srcRect.y2 ? srcRect.y2 - 1 : srcY);
-
-            char* srcRow = (char*)srcPtr + (ptrdiff_t)(srcY - srcRect.y1) * srcRowBytes;
-            std::memcpy(dstRow + (ptrdiff_t)dstX * pixelBytes,
-                        srcRow + (ptrdiff_t)(srcX - srcRect.x1) * pixelBytes,
-                        (size_t)pixelBytes);
+    if (gThreadHost) {
+        unsigned int nCPUs = 1;
+        gThreadHost->multiThreadNumCPUs(&nCPUs);
+        if (nCPUs > 1) {
+            gThreadHost->multiThread(renderSlice, nCPUs, &args);
+        } else {
+            renderSlice(&args, 0, 1);
         }
+    } else {
+        renderSlice(&args, 0, 1);
     }
 
     gEffectHost->clipReleaseImage(srcImg);
@@ -354,7 +362,7 @@ static OfxPlugin plugin = {
     1,
     "com.boilify.effect",
     1,
-    1,
+    3,
     setHostFunc,
     pluginMain
 };

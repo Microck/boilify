@@ -12,50 +12,54 @@
         <canvas id="after"></canvas>
       </div>
       <div class="controls">
-        <div class="field">
-          <label>Strength</label>
-          <input id="strength" type="range" min="0" max="20" step="0.1" />
-          <output id="strengthOut"></output>
+        <div class="sliders">
+          <div class="field">
+            <label>Strength</label>
+            <input id="strength" type="range" min="0" max="20" step="0.1" />
+            <output id="strengthOut"></output>
+          </div>
+          <div class="field">
+            <label>Size</label>
+            <input id="size" type="range" min="1" max="200" step="1" />
+            <output id="sizeOut"></output>
+          </div>
+          <div class="field">
+            <label>Speed</label>
+            <input id="speed" type="range" min="0" max="6" step="0.05" />
+            <output id="speedOut"></output>
+          </div>
+          <div class="field">
+            <label>FPS</label>
+            <input id="frames" type="range" min="1" max="24" step="1" />
+            <output id="framesOut"></output>
+          </div>
+          <div class="field">
+            <label>Complexity</label>
+            <input id="complexity" type="range" min="1" max="6" step="1" />
+            <output id="complexityOut"></output>
+          </div>
+          <div class="field">
+            <label>Seed</label>
+            <input id="seed" type="range" min="0" max="9999" step="1" />
+            <output id="seedOut"></output>
+          </div>
         </div>
-        <div class="field">
-          <label>Size</label>
-          <input id="size" type="range" min="1" max="200" step="1" />
-          <output id="sizeOut"></output>
-        </div>
-        <div class="field">
-          <label>Speed</label>
-          <input id="speed" type="range" min="0" max="6" step="0.05" />
-          <output id="speedOut"></output>
-        </div>
-        <div class="field">
-          <label>FPS</label>
-          <input id="frames" type="range" min="1" max="24" step="1" />
-          <output id="framesOut"></output>
-        </div>
-        <div class="field">
-          <label>Complexity</label>
-          <input id="complexity" type="range" min="1" max="6" step="1" />
-          <output id="complexityOut"></output>
-        </div>
-        <div class="field">
-          <label>Seed</label>
-          <input id="seed" type="range" min="0" max="9999" step="1" />
-          <output id="seedOut"></output>
-        </div>
-        <div class="field">
-          <label>Noise</label>
-          <select id="noise"><option value="smooth">Smooth</option><option value="ridged">Ridged</option></select>
-        </div>
-        <div class="field">
-          <label>Animate</label>
-          <label class="toggle">
-            <input id="animate" type="checkbox" checked />
-            <span class="toggleTrack"></span>
-          </label>
-        </div>
-        <div class="field">
-          <label>Quality</label>
-          <select id="quality"><option value="fast">Fast</option><option value="high">High</option></select>
+        <div class="toggles">
+          <div class="field">
+            <label>Noise</label>
+            <select id="noise"><option value="smooth">Smooth</option><option value="ridged">Ridged</option></select>
+          </div>
+          <div class="field">
+            <label>Quality</label>
+            <select id="quality"><option value="fast">Fast</option><option value="high">High</option></select>
+          </div>
+          <div class="field">
+            <label>Animate</label>
+            <label class="toggle">
+              <input id="animate" type="checkbox" checked />
+              <span class="toggleTrack"></span>
+            </label>
+          </div>
         </div>
         <div class="export">
           <label class="fileLabel"><input id="fileInput" type="file" accept="image/*" />Load</label>
