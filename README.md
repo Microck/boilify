@@ -19,7 +19,7 @@
 
 ## install
 
-1. download zip from [releases](https://github.com/AcademySoftwareFoundation/boilify/releases)
+1. download zip from [releases](https://github.com/Microck/boilify/releases)
 2. extract `.ofx.bundle`
 3. copy to `/Library/OFX/Plugins` (macOS), `C:\Program Files\Common Files\OFX\Plugins` (windows), or `/usr/OFX/Plugins` (linux)
 4. restart resolve
@@ -27,6 +27,13 @@
 ## tuner
 
 open `tuner/index.html` in a browser to preview and dial in settings before applying in resolve. adjust sliders, copy the json, and use as your preferred defaults.
+
+## performance
+
+- multithreaded rendering via OfxMultiThreadSuite
+- scales with cpu cores (4-8x faster on 8+ cores)
+- `fast` quality is optimized for timeline preview
+- `high` quality for final renders
 
 ## settings
 
