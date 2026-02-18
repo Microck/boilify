@@ -3,7 +3,7 @@
 
   <h1>Boilify</h1>
 
-  <p><strong>heat distortion OpenFX plugin for DaVinci Resolve Studio 20+</strong></p>
+  <p><strong>line boil / hand-drawn jitter OpenFX plugin for DaVinci Resolve Studio 20+</strong></p>
 
   <p>
     <a href="LICENSE">
@@ -19,32 +19,41 @@
 
 ## install
 
-1. download zip
+1. download zip from [releases](https://github.com/AcademySoftwareFoundation/boilify/releases)
 2. extract `.ofx.bundle`
 3. copy to `/Library/OFX/Plugins` (macOS), `C:\Program Files\Common Files\OFX\Plugins` (windows), or `/usr/OFX/Plugins` (linux)
 4. restart resolve
+
+## tuner
+
+open `tuner/index.html` in a browser to preview and dial in settings before applying in resolve. adjust sliders, copy the json, and use as your preferred defaults.
 
 ## settings
 
 | parameter | default | effect |
 |-----------|---------|--------|
-| strength | 1.0 | how far pixels shift |
-| density | 2.0 | noise scale. higher = smaller bubbles |
-| speed | 1.0 | animation rate |
-| seed | 0 | noise seed. change for different patterns |
-| animate | on | toggle time-based motion |
-| quality | fast | `fast` for responsive preview, `high` for smoother detail |
+| strength | 5.0 | line jitter amount in pixels |
+| size | 30.0 | noise scale in pixels. higher = larger wiggle chunks |
+| speed | 1.0 | how quickly the pattern changes |
+| boil fps | 12 | posterize-time style. typical: 4-12 |
+| complexity | 3 | noise layers. higher = more detail (slower) |
+| noise | smooth | `smooth` for classic boil, `ridged` for sharper texture |
+| seed | 0 | random seed. change for different patterns |
+| animate | on | toggle time-based boiling |
+| quality | fast | `fast` for preview, `high` for nicer noise |
 
 ## algorithm
 
 ```
 for each pixel:
-  noise = perlin(position * density + time * speed)
-  offset = (cos(noise), sin(noise)) * strength
-  output[x,y] = input[x + offset.x, y + offset.y]
+  step = floor((time / frameRate) * boilFps * speed)
+  seed' = seed + step
+  dx = fbm(position / size, seed') * 2 - 1
+  dy = fbm(position / size, seed' + const) * 2 - 1
+  output[x,y] = input[x + dx * strength, y + dy * strength]
 ```
 
-perlin noise gives organic motion. trig functions make it circular. looks like heat haze.
+frame holds make the motion feel hand-drawn ("line boil") instead of smoothly interpolated.
 
 ## build
 
