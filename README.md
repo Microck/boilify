@@ -1,5 +1,9 @@
 # boilify
 
+<p align="center">
+  <img src="Boilify.ofx.bundle/Contents/Resources/com.boilify.effect.png" alt="Boilify logo" width="180" />
+</p>
+
 heat distortion plugin for DaVinci Resolve Studio 20+.
 
 ## install
@@ -18,6 +22,7 @@ heat distortion plugin for DaVinci Resolve Studio 20+.
 | speed | 1.0 | animation rate |
 | seed | 0 | noise seed. change for different patterns |
 | animate | on | toggle time-based motion |
+| quality | fast | `fast` for responsive preview, `high` for smoother detail |
 
 ## algorithm
 
