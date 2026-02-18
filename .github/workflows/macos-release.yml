@@ -1,0 +1,79 @@
+name: build macos release asset
+
+"on":
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "release tag (example: v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: setup cmake
+        uses: lukka/get-cmake@v3.31.6
+
+      - name: clone openfx
+        run: |
+          if [ ! -d openfx ]; then
+            git clone --depth 1 https://github.com/AcademySoftwareFoundation/openfx.git openfx
+          fi
+
+      - name: configure
+        run: |
+          root="$GITHUB_WORKSPACE"
+          cmake -S "$root" -B "$root/build" -DCMAKE_BUILD_TYPE=Release -DOPENFX_ROOT="$root/openfx"
+
+      - name: build
+        run: |
+          root="$GITHUB_WORKSPACE"
+          cmake --build "$root/build" --config Release
+
+      - name: package
+        run: |
+          root="$GITHUB_WORKSPACE"
+          tag="${{ inputs.tag }}"
+          version="${tag#v}"
+
+          rm -rf "$root/dist"
+          mkdir -p "$root/dist"
+
+          cp -R "$root/Boilify.ofx.bundle" "$root/dist/Boilify.ofx.bundle"
+
+          rm -rf "$root/dist/Boilify.ofx.bundle/Linux-x86-64" || true
+          rm -rf "$root/dist/Boilify.ofx.bundle/Win64" || true
+          rm -rf "$root/dist/Boilify.ofx.bundle/MacOS" || true
+          rm -rf "$root/dist/Boilify.ofx.bundle/Contents/MacOS" || true
+          rm -rf "$root/dist/Boilify.ofx.bundle/Contents/Win64" || true
+          rm -rf "$root/dist/Boilify.ofx.bundle/Contents/Linux-x86-64" || true
+
+          mkdir -p "$root/dist/Boilify.ofx.bundle/Contents/MacOS"
+          cp "$root/build/MacOS/Boilify.ofx" "$root/dist/Boilify.ofx.bundle/Contents/MacOS/Boilify.ofx"
+
+          cp "$root/README.md" "$root/dist/README.md"
+          cp "$root/LICENSE" "$root/dist/LICENSE"
+          cp "$root/install.sh" "$root/dist/install.sh"
+
+          zip="${root}/dist/boilify-v${version}-macos.zip"
+          rm -f "$zip"
+          (cd "$root/dist" && zip -r "$(basename "$zip")" "Boilify.ofx.bundle" "README.md" "LICENSE" "install.sh")
+
+          echo "zip_path=$zip" >> "$GITHUB_OUTPUT"
+
+      - name: upload to github release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag }}"
+          zip=$(ls dist/boilify-*-macos.zip | head -n 1)
+          gh release upload "$tag" "$zip" --clobber
