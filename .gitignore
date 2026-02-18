@@ -1,0 +1,7 @@
+openfx/
+build/
+*.o
+*.so
+*.dylib
+*.dll
+.DS_Store
