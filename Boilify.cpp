@@ -32,6 +32,14 @@ static OfxStatus describe(OfxImageEffectHandle effect) {
     return kOfxStatOK;
 }
 
+static OfxStatus createInstance(OfxImageEffectHandle effect, OfxPropertySetHandle) {
+    return kOfxStatOK;
+}
+
+static OfxStatus destroyInstance(OfxImageEffectHandle effect, OfxPropertySetHandle) {
+    return kOfxStatOK;
+}
+
 static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHandle) {
     OfxPropertySetHandle props;
     gEffectHost->clipDefine(effect, kOfxImageEffectOutputClipName, &props);
@@ -91,6 +99,8 @@ static OfxStatus pluginMain(const char* action, const void* handle, OfxPropertyS
     if (strcmp(action, kOfxActionLoad) == 0) return onLoad();
     if (strcmp(action, kOfxActionDescribe) == 0) return describe(effect);
     if (strcmp(action, kOfxImageEffectActionDescribeInContext) == 0) return describeInContext(effect, inArgs);
+    if (strcmp(action, kOfxActionCreateInstance) == 0) return createInstance(effect, inArgs);
+    if (strcmp(action, kOfxActionDestroyInstance) == 0) return destroyInstance(effect, inArgs);
     if (strcmp(action, kOfxImageEffectActionRender) == 0) return render(effect, inArgs, outArgs);
     return kOfxStatReplyDefault;
 }
