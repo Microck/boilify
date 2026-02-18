@@ -41,7 +41,6 @@ static OfxStatus describe(OfxImageEffectHandle effect) {
     gPropHost->propSetString(props, kOfxImageEffectPropSupportedPixelDepths, 1, kOfxBitDepthShort);
     gPropHost->propSetString(props, kOfxImageEffectPropSupportedPixelDepths, 2, kOfxBitDepthFloat);
     gPropHost->propSetString(props, kOfxImageEffectPropSupportedContexts, 0, kOfxImageEffectContextFilter);
-    gPropHost->propSetString(props, kOfxImageEffectPropRenderThreadSafety, 0, kOfxImageEffectRenderFullySafe);
     return kOfxStatOK;
 }
 
@@ -203,7 +202,7 @@ struct RenderArgs {
     int noiseType;
 };
 
-static void renderSlice(void* vargs, int threadId, int nThreads) {
+static void renderSlice(unsigned int threadId, unsigned int nThreads, void* vargs) {
     RenderArgs* args = (RenderArgs*)vargs;
 
     int dy = args->window.y2 - args->window.y1;
@@ -331,10 +330,10 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
         if (nCPUs > 1) {
             gThreadHost->multiThread(renderSlice, nCPUs, &args);
         } else {
-            renderSlice(&args, 0, 1);
+            renderSlice(0, 1, &args);
         }
     } else {
-        renderSlice(&args, 0, 1);
+        renderSlice(0, 1, &args);
     }
 
     gEffectHost->clipReleaseImage(srcImg);
