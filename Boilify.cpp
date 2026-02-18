@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cstddef>
 #include <cmath>
 #include <algorithm>
 #include "ofxImageEffect.h"
@@ -211,8 +212,8 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     gPropHost->propGetIntN(dstImg, kOfxImagePropBounds, 4, &dstRect.x1);
     gPropHost->propGetPointer(dstImg, kOfxImagePropData, 0, &dstPtr);
     
-    const char* srcDepth = NULL;
-    const char* dstDepth = NULL;
+    char* srcDepth = NULL;
+    char* dstDepth = NULL;
     gPropHost->propGetString(srcImg, kOfxImageEffectPropPixelDepth, 0, &srcDepth);
     gPropHost->propGetString(dstImg, kOfxImageEffectPropPixelDepth, 0, &dstDepth);
 
