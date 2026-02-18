@@ -30,39 +30,39 @@ jobs:
 
       - name: configure
         shell: pwsh
-        working-directory: ${{ github.workspace }}
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOPENFX_ROOT=./openfx
+          $root = $env:GITHUB_WORKSPACE
+          cmake -S "$root" -B "$root/build" -DCMAKE_BUILD_TYPE=Release -DOPENFX_ROOT="$root/openfx"
 
       - name: build
         shell: pwsh
-        working-directory: ${{ github.workspace }}
         run: |
-          cmake --build build --config Release
+          $root = $env:GITHUB_WORKSPACE
+          cmake --build "$root/build" --config Release
 
       - name: package
         shell: pwsh
-        working-directory: ${{ github.workspace }}
         run: |
+          $root = $env:GITHUB_WORKSPACE
           $tag = "${{ inputs.tag }}"
           $version = $tag.TrimStart('v')
 
-          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-          New-Item -ItemType Directory -Path dist | Out-Null
+          if (Test-Path "$root/dist") { Remove-Item -Recurse -Force "$root/dist" }
+          New-Item -ItemType Directory -Path "$root/dist" | Out-Null
 
-          Copy-Item -Recurse -Force Boilify.ofx.bundle dist/Boilify.ofx.bundle
-          if (Test-Path dist/Boilify.ofx.bundle/Linux-x86-64) { Remove-Item -Recurse -Force dist/Boilify.ofx.bundle/Linux-x86-64 }
-          if (Test-Path dist/Boilify.ofx.bundle/MacOS) { Remove-Item -Recurse -Force dist/Boilify.ofx.bundle/MacOS }
-          New-Item -ItemType Directory -Force -Path dist/Boilify.ofx.bundle/Win64 | Out-Null
+          Copy-Item -Recurse -Force "$root/Boilify.ofx.bundle" "$root/dist/Boilify.ofx.bundle"
+          if (Test-Path "$root/dist/Boilify.ofx.bundle/Linux-x86-64") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/Linux-x86-64" }
+          if (Test-Path "$root/dist/Boilify.ofx.bundle/MacOS") { Remove-Item -Recurse -Force "$root/dist/Boilify.ofx.bundle/MacOS" }
+          New-Item -ItemType Directory -Force -Path "$root/dist/Boilify.ofx.bundle/Win64" | Out-Null
 
-          Copy-Item -Force build/Win64/BoilEffect.ofx dist/Boilify.ofx.bundle/Win64/BoilEffect.ofx
-          Copy-Item -Force README.md dist/README.md
-          Copy-Item -Force LICENSE dist/LICENSE
-          Copy-Item -Force install.bat dist/install.bat
+          Copy-Item -Force "$root/build/Win64/BoilEffect.ofx" "$root/dist/Boilify.ofx.bundle/Win64/BoilEffect.ofx"
+          Copy-Item -Force "$root/README.md" "$root/dist/README.md"
+          Copy-Item -Force "$root/LICENSE" "$root/dist/LICENSE"
+          Copy-Item -Force "$root/install.bat" "$root/dist/install.bat"
 
-          $zip = "dist/boilify-v$version-windows.zip"
+          $zip = "$root/dist/boilify-v$version-windows.zip"
           if (Test-Path $zip) { Remove-Item -Force $zip }
-          Compress-Archive -Path dist/Boilify.ofx.bundle,dist/README.md,dist/LICENSE,dist/install.bat -DestinationPath $zip
+          Compress-Archive -Path "$root/dist/Boilify.ofx.bundle","$root/dist/README.md","$root/dist/LICENSE","$root/dist/install.bat" -DestinationPath $zip
 
           echo "zip_path=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
