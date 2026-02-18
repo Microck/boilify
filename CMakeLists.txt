@@ -26,11 +26,6 @@ include_directories(
   ${OPENFX_ROOT}/Support/Plugins/include
 )
 
-find_package(OpenGL QUIET)
-if(NOT OpenGL_FOUND)
-  message(STATUS "OpenGL not found, using CPU-only rendering")
-endif()
-
 set(SOURCES Boilify.cpp)
 
 if(APPLE)
