@@ -104,7 +104,11 @@ static OfxStatus describe(OfxImageEffectHandle effect) {
     gPropHost->propSetString(effectProps, kOfxImageEffectPluginPropGrouping, 0, "Distort");
     
     gPropHost->propSetInt(effectProps, kOfxImageEffectPropSupportsMultipleClipDepths, 0, 0);
-    gPropHost->propSetString(effectProps, kOfxImageEffectPropSupportedPixelDepths, 0, kOfxBitDepthFloat);
+    // Keep this broadly compatible with hosts that prefer 8/16-bit or half-float pipelines.
+    gPropHost->propSetString(effectProps, kOfxImageEffectPropSupportedPixelDepths, 0, kOfxBitDepthByte);
+    gPropHost->propSetString(effectProps, kOfxImageEffectPropSupportedPixelDepths, 1, kOfxBitDepthShort);
+    gPropHost->propSetString(effectProps, kOfxImageEffectPropSupportedPixelDepths, 2, kOfxBitDepthHalf);
+    gPropHost->propSetString(effectProps, kOfxImageEffectPropSupportedPixelDepths, 3, kOfxBitDepthFloat);
     gPropHost->propSetString(effectProps, kOfxImageEffectPropSupportedContexts, 0, kOfxImageEffectContextFilter);
     
     return kOfxStatOK;
@@ -207,11 +211,30 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     gPropHost->propGetIntN(dstImg, kOfxImagePropBounds, 4, &dstRect.x1);
     gPropHost->propGetPointer(dstImg, kOfxImagePropData, 0, &dstPtr);
     
-    float* srcPix = (float*)srcPtr;
-    float* dstPix = (float*)dstPtr;
-    
-    int width = dstRect.x2 - dstRect.x1;
-    int height = dstRect.y2 - dstRect.y1;
+    const char* srcDepth = NULL;
+    const char* dstDepth = NULL;
+    gPropHost->propGetString(srcImg, kOfxImageEffectPropPixelDepth, 0, &srcDepth);
+    gPropHost->propGetString(dstImg, kOfxImageEffectPropPixelDepth, 0, &dstDepth);
+
+    // We only do nearest-neighbor pixel moves, so we can memcpy the pixel bytes.
+    int bytesPerComponent = 0;
+    if(srcDepth && strcmp(srcDepth, kOfxBitDepthByte) == 0) bytesPerComponent = 1;
+    else if(srcDepth && strcmp(srcDepth, kOfxBitDepthShort) == 0) bytesPerComponent = 2;
+    else if(srcDepth && strcmp(srcDepth, kOfxBitDepthHalf) == 0) bytesPerComponent = 2;
+    else if(srcDepth && strcmp(srcDepth, kOfxBitDepthFloat) == 0) bytesPerComponent = 4;
+    else {
+        gEffectHost->clipReleaseImage(srcImg);
+        gEffectHost->clipReleaseImage(dstImg);
+        return kOfxStatErrUnsupported;
+    }
+
+    if(!dstDepth || strcmp(srcDepth, dstDepth) != 0) {
+        gEffectHost->clipReleaseImage(srcImg);
+        gEffectHost->clipReleaseImage(dstImg);
+        return kOfxStatErrUnsupported;
+    }
+
+    const int pixelBytes = bytesPerComponent * 4; // RGBA
     
     float scale = (float)(density / 100.0);
     float t = renderTime * (float)speed;
@@ -226,17 +249,22 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
             float n = perlin(px * scale + t, py * scale + t, seedInt);
             float ox = cosf(n * 6.28318f) * (float)strength;
             float oy = sinf(n * 6.28318f) * (float)strength;
-            
-            int sx = std::max(0, std::min(width - 1, px + (int)ox));
-            int sy = std::max(0, std::min(height - 1, py + (int)oy));
-            
-            int dstIdx = (py * width + px) * 4;
-            int srcIdx = (sy * width + sx) * 4;
-            
-            dstPix[dstIdx + 0] = srcPix[srcIdx + 0];
-            dstPix[dstIdx + 1] = srcPix[srcIdx + 1];
-            dstPix[dstIdx + 2] = srcPix[srcIdx + 2];
-            dstPix[dstIdx + 3] = srcPix[srcIdx + 3];
+
+            const int sxAbs = std::max(srcRect.x1, std::min(srcRect.x2 - 1, x + (int)ox));
+            const int syAbs = std::max(srcRect.y1, std::min(srcRect.y2 - 1, y + (int)oy));
+
+            const int srcX = sxAbs - srcRect.x1;
+            const int srcY = syAbs - srcRect.y1;
+            const int dstX = x - dstRect.x1;
+            const int dstY = y - dstRect.y1;
+
+            char* dstRow = (char*)dstPtr + (ptrdiff_t)dstY * (ptrdiff_t)dstRowBytes;
+            char* srcRow = (char*)srcPtr + (ptrdiff_t)srcY * (ptrdiff_t)srcRowBytes;
+
+            char* dstPixel = dstRow + (ptrdiff_t)dstX * (ptrdiff_t)pixelBytes;
+            char* srcPixel = srcRow + (ptrdiff_t)srcX * (ptrdiff_t)pixelBytes;
+
+            memcpy(dstPixel, srcPixel, (size_t)pixelBytes);
         }
     }
     
