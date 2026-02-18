@@ -1,0 +1,73 @@
+name: build windows release asset
+
+"on":
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "release tag (example: v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup cmake
+        uses: lukka/get-cmake@v3.31.6
+
+      - name: clone openfx
+        shell: pwsh
+        run: |
+          if (!(Test-Path -Path openfx)) {
+            git clone --depth 1 https://github.com/AcademySoftwareFoundation/openfx.git openfx
+          }
+
+      - name: configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOPENFX_ROOT=./openfx
+
+      - name: build
+        shell: pwsh
+        run: |
+          cmake --build build --config Release
+
+      - name: package
+        shell: pwsh
+        run: |
+          $tag = "${{ inputs.tag }}"
+          $version = $tag.TrimStart('v')
+
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          New-Item -ItemType Directory -Path dist | Out-Null
+
+          Copy-Item -Recurse -Force Boilify.ofx.bundle dist/Boilify.ofx.bundle
+          if (Test-Path dist/Boilify.ofx.bundle/Linux-x86-64) { Remove-Item -Recurse -Force dist/Boilify.ofx.bundle/Linux-x86-64 }
+          if (Test-Path dist/Boilify.ofx.bundle/MacOS) { Remove-Item -Recurse -Force dist/Boilify.ofx.bundle/MacOS }
+          New-Item -ItemType Directory -Force -Path dist/Boilify.ofx.bundle/Win64 | Out-Null
+
+          Copy-Item -Force build/Win64/BoilEffect.ofx dist/Boilify.ofx.bundle/Win64/BoilEffect.ofx
+          Copy-Item -Force README.md dist/README.md
+          Copy-Item -Force LICENSE dist/LICENSE
+          Copy-Item -Force install.bat dist/install.bat
+
+          $zip = "dist/boilify-v$version-windows.zip"
+          if (Test-Path $zip) { Remove-Item -Force $zip }
+          Compress-Archive -Path dist/Boilify.ofx.bundle,dist/README.md,dist/LICENSE,dist/install.bat -DestinationPath $zip
+
+          echo "zip_path=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: upload to github release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = "${{ inputs.tag }}"
+          $zip = (Get-ChildItem dist -Filter "boilify-*-windows.zip" | Select-Object -First 1).FullName
+          gh release upload $tag $zip --clobber

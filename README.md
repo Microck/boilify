@@ -1,6 +1,6 @@
 # boilify
 
-heat distortion plugin for daVinci resolve studio 20+.
+heat distortion plugin for DaVinci Resolve Studio 20+.
 
 ## install
 

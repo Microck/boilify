@@ -42,14 +42,30 @@ else()
   set(PLUGIN_DIR "Linux-x86-64")
 endif()
 
+set(PLUGIN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/${PLUGIN_DIR}")
+
 add_library(BoilEffect MODULE ${SOURCES})
 
 set_target_properties(BoilEffect PROPERTIES
   OUTPUT_NAME "BoilEffect.ofx"
   PREFIX ""
   SUFFIX ""
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${PLUGIN_DIR}"
+  ARCHIVE_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
+  LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
 )
+
+# Multi-config generators (Visual Studio, Xcode) ignore the non-config output dirs.
+if(CMAKE_CONFIGURATION_TYPES)
+  foreach(cfg ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER "${cfg}" cfg_uc)
+    set_target_properties(BoilEffect PROPERTIES
+      ARCHIVE_OUTPUT_DIRECTORY_${cfg_uc} "${PLUGIN_OUTPUT_DIR}"
+      LIBRARY_OUTPUT_DIRECTORY_${cfg_uc} "${PLUGIN_OUTPUT_DIR}"
+      RUNTIME_OUTPUT_DIRECTORY_${cfg_uc} "${PLUGIN_OUTPUT_DIR}"
+    )
+  endforeach()
+endif()
 
 if(APPLE)
   target_link_libraries(BoilEffect "-framework OpenGL")

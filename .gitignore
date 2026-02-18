@@ -1,5 +1,6 @@
 openfx/
 build/
+dist/
 *.o
 *.so
 *.dylib
