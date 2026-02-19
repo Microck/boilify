@@ -48,7 +48,8 @@ open `tuner/index.html` in a browser to preview and dial in settings before appl
 | seed | 0 | random seed. change for different patterns |
 | animate | on | toggle time-based boiling |
 | quality | fast | `fast` for preview, `high` for nicer noise |
-| use input alpha | off | only displace non-transparent pixels (for graphics/pngs) |
+
+transparent pixels are automatically preserved (so graphics/png overlays do not smear into empty alpha).
 
 ## algorithm
 
