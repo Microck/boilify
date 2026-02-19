@@ -42,13 +42,13 @@ open `tuner/index.html` in a browser to preview and dial in settings before appl
 | strength | 5.0 | line jitter amount in pixels |
 | size | 30.0 | noise scale in pixels. higher = larger wiggle chunks |
 | speed | 1.0 | how quickly the pattern changes |
-| boil fps | 12 | posterize-time style. typical: 4-12 |
+| fps | 12 | posterize-time style. typical: 4-12 |
 | complexity | 3 | noise layers. higher = more detail (slower) |
 | noise | smooth | `smooth` for classic boil, `ridged` for sharper texture |
 | seed | 0 | random seed. change for different patterns |
 | animate | on | toggle time-based boiling |
 | quality | fast | `fast` for preview, `high` for nicer noise |
-| use alpha | off | only displace non-transparent pixels (for graphics/pngs) |
+| use input alpha | off | only displace non-transparent pixels (for graphics/pngs) |
 
 ## algorithm
 

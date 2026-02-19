@@ -21,6 +21,10 @@ static constexpr int kQualityHigh = 1;
 static constexpr int kNoiseSmooth = 0;
 static constexpr int kNoiseRidged = 1;
 
+static inline int clampInt(int value, int lo, int hi) {
+    return value < lo ? lo : (value > hi ? hi : value);
+}
+
 static OfxStatus onLoad(void) {
     if (!gHost) return kOfxStatErrMissingHostFeature;
     gEffectHost = (OfxImageEffectSuiteV1*)gHost->fetchSuite(gHost->host, kOfxImageEffectSuite, 1);
@@ -77,9 +81,11 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
     gPropHost->propSetDouble(props, kOfxParamPropDefault, 0, 1.0);
     gPropHost->propSetDouble(props, kOfxParamPropMin, 0, 0.0);
     gPropHost->propSetDouble(props, kOfxParamPropMax, 0, 6.0);
+    gPropHost->propSetDouble(props, kOfxParamPropDisplayMin, 0, 0.0);
+    gPropHost->propSetDouble(props, kOfxParamPropDisplayMax, 0, 6.0);
 
     gParamHost->paramDefine(params, kOfxParamTypeInteger, "boilFps", &props);
-    gPropHost->propSetString(props, kOfxPropLabel, 0, "Boil FPS");
+    gPropHost->propSetString(props, kOfxPropLabel, 0, "FPS");
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 12);
     gPropHost->propSetInt(props, kOfxParamPropMin, 0, 1);
     gPropHost->propSetInt(props, kOfxParamPropMax, 0, 48);
@@ -91,12 +97,16 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 3);
     gPropHost->propSetInt(props, kOfxParamPropMin, 0, 1);
     gPropHost->propSetInt(props, kOfxParamPropMax, 0, 6);
+    gPropHost->propSetInt(props, kOfxParamPropDisplayMin, 0, 1);
+    gPropHost->propSetInt(props, kOfxParamPropDisplayMax, 0, 6);
 
     gParamHost->paramDefine(params, kOfxParamTypeInteger, "seed", &props);
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Seed");
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 0);
     gPropHost->propSetInt(props, kOfxParamPropMin, 0, 0);
     gPropHost->propSetInt(props, kOfxParamPropMax, 0, 9999);
+    gPropHost->propSetInt(props, kOfxParamPropDisplayMin, 0, 0);
+    gPropHost->propSetInt(props, kOfxParamPropDisplayMax, 0, 9999);
 
     gParamHost->paramDefine(params, kOfxParamTypeChoice, "noise", &props);
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Noise");
@@ -115,7 +125,7 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 1);
 
     gParamHost->paramDefine(params, kOfxParamTypeBoolean, "useAlpha", &props);
-    gPropHost->propSetString(props, kOfxPropLabel, 0, "Use Alpha");
+    gPropHost->propSetString(props, kOfxPropLabel, 0, "Use Input Alpha");
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 0);
     gPropHost->propSetString(props, kOfxParamPropHint, 0, "Only displace non-transparent pixels (for graphics with alpha).");
 
@@ -189,6 +199,30 @@ static float fbm(float x, float y, int seed, int octaves, int noiseType) {
     return (ampSum > 0.0f) ? (sum / ampSum) : 0.0f;
 }
 
+static inline float valueNoiseFast(float x, float y, int seed) {
+    const int xi = fastFloor(x);
+    const int yi = fastFloor(y);
+    return hashFast(xi, yi, seed);
+}
+
+static float fbmPreviewFast(float x, float y, int seed, int octaves, int noiseType) {
+    const int cappedOctaves = clampInt(octaves, 1, 2);
+    float sum = 0.0f;
+    float amp = 1.0f;
+    float ampSum = 0.0f;
+    float freq = 1.0f;
+
+    for (int i = 0; i < cappedOctaves; ++i) {
+        float n = applyNoiseType(valueNoiseFast(x * freq, y * freq, seed + i * 101), noiseType);
+        sum += n * amp;
+        ampSum += amp;
+        amp *= 0.5f;
+        freq *= 2.0f;
+    }
+
+    return (ampSum > 0.0f) ? (sum / ampSum) : 0.0f;
+}
+
 struct RenderArgs {
     OfxImageEffectHandle instance;
     char* srcPtr;
@@ -205,6 +239,7 @@ struct RenderArgs {
     int seedY;
     int complexity;
     int noiseType;
+    int qualityMode;
     int useAlpha;
 };
 
@@ -238,15 +273,27 @@ static void renderSlice(unsigned int threadId, unsigned int nThreads, void* varg
                 }
                 if (alpha > 0.0f) {
                     float nx = (float)dstX * args->invSize;
-                    float fx = fbm(nx, ny, args->seedX, args->complexity, args->noiseType) * 2.0f - 1.0f;
-                    float fy = fbm(nx, ny, args->seedY, args->complexity, args->noiseType) * 2.0f - 1.0f;
+                    const float fxNoise = (args->qualityMode == kQualityFast)
+                        ? fbmPreviewFast(nx, ny, args->seedX, args->complexity, args->noiseType)
+                        : fbm(nx, ny, args->seedX, args->complexity, args->noiseType);
+                    const float fyNoise = (args->qualityMode == kQualityFast)
+                        ? fbmPreviewFast(nx, ny, args->seedY, args->complexity, args->noiseType)
+                        : fbm(nx, ny, args->seedY, args->complexity, args->noiseType);
+                    float fx = fxNoise * 2.0f - 1.0f;
+                    float fy = fyNoise * 2.0f - 1.0f;
                     srcX = x + (int)(fx * args->strength);
                     srcY = y + (int)(fy * args->strength);
                 }
             } else {
                 float nx = (float)dstX * args->invSize;
-                float fx = fbm(nx, ny, args->seedX, args->complexity, args->noiseType) * 2.0f - 1.0f;
-                float fy = fbm(nx, ny, args->seedY, args->complexity, args->noiseType) * 2.0f - 1.0f;
+                const float fxNoise = (args->qualityMode == kQualityFast)
+                    ? fbmPreviewFast(nx, ny, args->seedX, args->complexity, args->noiseType)
+                    : fbm(nx, ny, args->seedX, args->complexity, args->noiseType);
+                const float fyNoise = (args->qualityMode == kQualityFast)
+                    ? fbmPreviewFast(nx, ny, args->seedY, args->complexity, args->noiseType)
+                    : fbm(nx, ny, args->seedY, args->complexity, args->noiseType);
+                float fx = fxNoise * 2.0f - 1.0f;
+                float fy = fyNoise * 2.0f - 1.0f;
                 srcX = x + (int)(fx * args->strength);
                 srcY = y + (int)(fy * args->strength);
             }
@@ -353,7 +400,21 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     args.seedY = seed + stepWrapped * 1013 + 1999;
     args.complexity = complexity < 1 ? 1 : (complexity > 6 ? 6 : complexity);
     args.noiseType = noiseType;
+    args.qualityMode = qualityMode;
     args.useAlpha = useAlpha;
+
+    if (args.strength <= 0.0001f) {
+        for (int y = window.y1; y < window.y2; ++y) {
+            char* dstRow = args.dstPtr + (ptrdiff_t)(y - args.dstRect.y1) * args.dstRowBytes;
+            char* srcRow = args.srcPtr + (ptrdiff_t)(y - args.srcRect.y1) * args.srcRowBytes;
+            std::memcpy(dstRow + (ptrdiff_t)(window.x1 - args.dstRect.x1) * args.pixelBytes,
+                        srcRow + (ptrdiff_t)(window.x1 - args.srcRect.x1) * args.pixelBytes,
+                        (size_t)(window.x2 - window.x1) * args.pixelBytes);
+        }
+        gEffectHost->clipReleaseImage(srcImg);
+        gEffectHost->clipReleaseImage(dstImg);
+        return kOfxStatOK;
+    }
 
     if (gThreadHost) {
         unsigned int nCPUs = 1;
@@ -392,7 +453,7 @@ static OfxPlugin plugin = {
     1,
     "com.boilify.effect",
     1,
-    4,
+    5,
     setHostFunc,
     pluginMain
 };
