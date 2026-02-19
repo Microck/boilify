@@ -114,6 +114,11 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Animate");
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 1);
 
+    gParamHost->paramDefine(params, kOfxParamTypeBoolean, "useAlpha", &props);
+    gPropHost->propSetString(props, kOfxPropLabel, 0, "Use Alpha");
+    gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 0);
+    gPropHost->propSetString(props, kOfxParamPropHint, 0, "Only displace non-transparent pixels (for graphics with alpha).");
+
     return kOfxStatOK;
 }
 
@@ -200,6 +205,7 @@ struct RenderArgs {
     int seedY;
     int complexity;
     int noiseType;
+    int useAlpha;
 };
 
 static void renderSlice(unsigned int threadId, unsigned int nThreads, void* vargs) {
@@ -215,13 +221,35 @@ static void renderSlice(unsigned int threadId, unsigned int nThreads, void* varg
 
         for (int x = args->window.x1; x < args->window.x2; x++) {
             int dstX = x - args->dstRect.x1;
-            float nx = (float)dstX * args->invSize;
 
-            float fx = fbm(nx, ny, args->seedX, args->complexity, args->noiseType) * 2.0f - 1.0f;
-            float fy = fbm(nx, ny, args->seedY, args->complexity, args->noiseType) * 2.0f - 1.0f;
+            int srcX = x;
+            int srcY = y;
 
-            int srcX = x + (int)(fx * args->strength);
-            int srcY = y + (int)(fy * args->strength);
+            if (args->useAlpha) {
+                char* origSrcRow = args->srcPtr + (ptrdiff_t)(y - args->srcRect.y1) * args->srcRowBytes;
+                char* origSrcPix = origSrcRow + (ptrdiff_t)dstX * args->pixelBytes;
+                float alpha = 1.0f;
+                if (args->pixelBytes == 4) {
+                    alpha = (float)((unsigned char)origSrcPix[3]) / 255.0f;
+                } else if (args->pixelBytes == 8) {
+                    alpha = ((unsigned short*)origSrcPix)[3] / 65535.0f;
+                } else if (args->pixelBytes == 16) {
+                    alpha = ((float*)origSrcPix)[3];
+                }
+                if (alpha > 0.0f) {
+                    float nx = (float)dstX * args->invSize;
+                    float fx = fbm(nx, ny, args->seedX, args->complexity, args->noiseType) * 2.0f - 1.0f;
+                    float fy = fbm(nx, ny, args->seedY, args->complexity, args->noiseType) * 2.0f - 1.0f;
+                    srcX = x + (int)(fx * args->strength);
+                    srcY = y + (int)(fy * args->strength);
+                }
+            } else {
+                float nx = (float)dstX * args->invSize;
+                float fx = fbm(nx, ny, args->seedX, args->complexity, args->noiseType) * 2.0f - 1.0f;
+                float fy = fbm(nx, ny, args->seedY, args->complexity, args->noiseType) * 2.0f - 1.0f;
+                srcX = x + (int)(fx * args->strength);
+                srcY = y + (int)(fy * args->strength);
+            }
 
             srcX = srcX < args->srcRect.x1 ? args->srcRect.x1 : (srcX >= args->srcRect.x2 ? args->srcRect.x2 - 1 : srcX);
             srcY = srcY < args->srcRect.y1 ? args->srcRect.y1 : (srcY >= args->srcRect.y2 ? args->srcRect.y2 - 1 : srcY);
@@ -255,7 +283,7 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     gEffectHost->getParamSet(instance, &paramSet);
 
     OfxParamHandle strengthParam, sizeParam, speedParam, seedParam, animateParam, qualityParam;
-    OfxParamHandle boilFpsParam, complexityParam, noiseParam;
+    OfxParamHandle boilFpsParam, complexityParam, noiseParam, useAlphaParam;
     gParamHost->paramGetHandle(paramSet, "strength", &strengthParam, NULL);
     gParamHost->paramGetHandle(paramSet, "size", &sizeParam, NULL);
     gParamHost->paramGetHandle(paramSet, "speed", &speedParam, NULL);
@@ -265,9 +293,10 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     gParamHost->paramGetHandle(paramSet, "boilFps", &boilFpsParam, NULL);
     gParamHost->paramGetHandle(paramSet, "complexity", &complexityParam, NULL);
     gParamHost->paramGetHandle(paramSet, "noise", &noiseParam, NULL);
+    gParamHost->paramGetHandle(paramSet, "useAlpha", &useAlphaParam, NULL);
 
     double strength, size, speed;
-    int seed, animate, qualityMode, boilFps, complexity, noiseType;
+    int seed, animate, qualityMode, boilFps, complexity, noiseType, useAlpha;
     gParamHost->paramGetValue(strengthParam, &strength);
     gParamHost->paramGetValue(sizeParam, &size);
     gParamHost->paramGetValue(speedParam, &speed);
@@ -277,6 +306,7 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     gParamHost->paramGetValue(boilFpsParam, &boilFps);
     gParamHost->paramGetValue(complexityParam, &complexity);
     gParamHost->paramGetValue(noiseParam, &noiseType);
+    gParamHost->paramGetValue(useAlphaParam, &useAlpha);
 
     OfxPropertySetHandle effectProps = NULL;
     double frameRate = 24.0;
@@ -323,6 +353,7 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     args.seedY = seed + stepWrapped * 1013 + 1999;
     args.complexity = complexity < 1 ? 1 : (complexity > 6 ? 6 : complexity);
     args.noiseType = noiseType;
+    args.useAlpha = useAlpha;
 
     if (gThreadHost) {
         unsigned int nCPUs = 1;
@@ -361,7 +392,7 @@ static OfxPlugin plugin = {
     1,
     "com.boilify.effect",
     1,
-    3,
+    4,
     setHostFunc,
     pluginMain
 };

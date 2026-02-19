@@ -8,6 +8,7 @@ const DEFAULTS = {
   seed: 0,
   animate: true,
   quality: "fast",
+  useAlpha: false,
 };
 
 const PREVIEW_TIMELINE_FPS = 24;
@@ -125,6 +126,7 @@ uniform int uSeed;
 uniform int uAnimate;
 uniform int uQuality;
 uniform int uStep;
+uniform int uUseAlpha;
 
 in vec2 vUv;
 out vec4 outColor;
@@ -173,12 +175,27 @@ float fbm(vec2 p, int seed) {
 
 void main() {
   vec2 dstPx = vUv * uRes;
-  vec2 p = dstPx / max(1.0, uSize);
-  int stepIndex = (uAnimate == 1) ? uStep : 0;
-  int seedBase = uSeed + stepIndex * 1013;
-  float nx = fbm(p, seedBase) * 2.0 - 1.0;
-  float ny = fbm(p, seedBase + 1999) * 2.0 - 1.0;
-  vec2 srcPx = clamp(dstPx + vec2(nx, ny) * uStrength, vec2(0.0), uRes - vec2(1.0));
+  vec2 srcPx = dstPx;
+  
+  if (uUseAlpha == 1) {
+    vec4 origPix = texture(uTex, vUv);
+    if (origPix.a > 0.0) {
+      vec2 p = dstPx / max(1.0, uSize);
+      int stepIndex = (uAnimate == 1) ? uStep : 0;
+      int seedBase = uSeed + stepIndex * 1013;
+      float nx = fbm(p, seedBase) * 2.0 - 1.0;
+      float ny = fbm(p, seedBase + 1999) * 2.0 - 1.0;
+      srcPx = clamp(dstPx + vec2(nx, ny) * uStrength, vec2(0.0), uRes - vec2(1.0));
+    }
+  } else {
+    vec2 p = dstPx / max(1.0, uSize);
+    int stepIndex = (uAnimate == 1) ? uStep : 0;
+    int seedBase = uSeed + stepIndex * 1013;
+    float nx = fbm(p, seedBase) * 2.0 - 1.0;
+    float ny = fbm(p, seedBase + 1999) * 2.0 - 1.0;
+    srcPx = clamp(dstPx + vec2(nx, ny) * uStrength, vec2(0.0), uRes - vec2(1.0));
+  }
+  
   outColor = texture(uTex, (srcPx + vec2(0.5)) / uRes);
 }`;
 
@@ -210,6 +227,7 @@ function createRenderer(canvas) {
     uAnimate: gl.getUniformLocation(program, "uAnimate"),
     uQuality: gl.getUniformLocation(program, "uQuality"),
     uStep: gl.getUniformLocation(program, "uStep"),
+    uUseAlpha: gl.getUniformLocation(program, "uUseAlpha"),
   };
 
   function setImage(bitmap) {
@@ -235,6 +253,7 @@ function createRenderer(canvas) {
     gl.uniform1i(uni.uAnimate, settings.animate ? 1 : 0);
     gl.uniform1i(uni.uQuality, settings.quality === "high" ? 1 : 0);
     gl.uniform1i(uni.uStep, stepIndex);
+    gl.uniform1i(uni.uUseAlpha, settings.useAlpha ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
@@ -249,6 +268,7 @@ function main() {
   const ui = {
     strength: $("strength"), size: $("size"), speed: $("speed"), frames: $("frames"),
     complexity: $("complexity"), noise: $("noise"), seed: $("seed"), animate: $("animate"), quality: $("quality"),
+    useAlpha: $("useAlpha"),
     strengthOut: $("strengthOut"), sizeOut: $("sizeOut"), speedOut: $("speedOut"), framesOut: $("framesOut"),
     complexityOut: $("complexityOut"), seedOut: $("seedOut"), exportBox: $("exportBox"),
     copyJsonBtn: $("copyJsonBtn"), fileInput: $("fileInput"),
@@ -263,12 +283,14 @@ function main() {
   ui.seed.value = DEFAULTS.seed;
   ui.animate.checked = DEFAULTS.animate;
   ui.quality.value = DEFAULTS.quality;
+  ui.useAlpha.checked = DEFAULTS.useAlpha;
 
   function readSettings() {
     return {
       strength: Number(ui.strength.value), size: Number(ui.size.value), speed: Number(ui.speed.value),
       frames: Number(ui.frames.value), complexity: Number(ui.complexity.value), noise: ui.noise.value,
       seed: Number(ui.seed.value), animate: Boolean(ui.animate.checked), quality: ui.quality.value,
+      useAlpha: Boolean(ui.useAlpha.checked),
     };
   }
 
