@@ -16,9 +16,8 @@ Then open:
 
 ## Usage
 
-- Use the sliders to tweak `strength`, `size`, `speed`, `frames`, `complexity`, `noise`, `seed`, `animate`, `quality`.
+- Use the controls to tweak `strength`, `size`, `speed`, `frames`, `complexity`, `noise`, `seed`, `animate`, `useAlpha`.
 - When it looks right, click `Copy JSON` and send me the output. That becomes the recommended defaults.
-- `Copy Share Link` includes the settings in the URL query so you can bookmark/share a specific tune.
 
 ## Notes
 

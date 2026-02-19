@@ -7,7 +7,6 @@ const DEFAULTS = {
   noise: "smooth",
   seed: 0,
   animate: true,
-  quality: "fast",
   useAlpha: false,
 };
 
@@ -124,7 +123,6 @@ uniform int uComplexity;
 uniform int uNoiseType;
 uniform int uSeed;
 uniform int uAnimate;
-uniform int uQuality;
 uniform int uStep;
 uniform int uUseAlpha;
 
@@ -132,11 +130,6 @@ in vec2 vUv;
 out vec4 outColor;
 
 float fade(float t) { return t * t * (3.0 - 2.0 * t); }
-
-uint mixBitsFast(uint v) {
-  v ^= v >> 16; v *= 0x7feb352du; v ^= v >> 15; v *= 0x846ca68bu; v ^= v >> 16;
-  return v;
-}
 
 uint mixBitsHigh(uint v) {
   v ^= v >> 17; v *= 0xed5ad4bbu; v ^= v >> 11; v *= 0xac4c1b51u; v ^= v >> 15;
@@ -146,7 +139,7 @@ uint mixBitsHigh(uint v) {
 
 float hashCell(ivec2 p, int seed) {
   uint h = uint(p.x) * 0x1f123bb5u ^ uint(p.y) * 0x59d2f15du ^ uint(seed) * 0x6c8e9cf5u;
-  h = (uQuality == 1) ? mixBitsHigh(h) : mixBitsFast(h);
+  h = mixBitsHigh(h);
   return float(h & 0x00ffffffu) * (1.0 / 16777216.0);
 }
 
@@ -225,7 +218,6 @@ function createRenderer(canvas) {
     uNoiseType: gl.getUniformLocation(program, "uNoiseType"),
     uSeed: gl.getUniformLocation(program, "uSeed"),
     uAnimate: gl.getUniformLocation(program, "uAnimate"),
-    uQuality: gl.getUniformLocation(program, "uQuality"),
     uStep: gl.getUniformLocation(program, "uStep"),
     uUseAlpha: gl.getUniformLocation(program, "uUseAlpha"),
   };
@@ -251,7 +243,6 @@ function createRenderer(canvas) {
     gl.uniform1i(uni.uNoiseType, settings.noise === "ridged" ? 1 : 0);
     gl.uniform1i(uni.uSeed, settings.seed);
     gl.uniform1i(uni.uAnimate, settings.animate ? 1 : 0);
-    gl.uniform1i(uni.uQuality, settings.quality === "high" ? 1 : 0);
     gl.uniform1i(uni.uStep, stepIndex);
     gl.uniform1i(uni.uUseAlpha, settings.useAlpha ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -267,7 +258,7 @@ function main() {
 
   const ui = {
     strength: $("strength"), size: $("size"), speed: $("speed"), frames: $("frames"),
-    complexity: $("complexity"), noise: $("noise"), seed: $("seed"), animate: $("animate"), quality: $("quality"),
+    complexity: $("complexity"), noise: $("noise"), seed: $("seed"), animate: $("animate"),
     useAlpha: $("useAlpha"),
     strengthOut: $("strengthOut"), sizeOut: $("sizeOut"), speedOut: $("speedOut"), framesOut: $("framesOut"),
     complexityOut: $("complexityOut"), seedOut: $("seedOut"), exportBox: $("exportBox"),
@@ -282,14 +273,13 @@ function main() {
   ui.noise.value = DEFAULTS.noise;
   ui.seed.value = DEFAULTS.seed;
   ui.animate.checked = DEFAULTS.animate;
-  ui.quality.value = DEFAULTS.quality;
   ui.useAlpha.checked = DEFAULTS.useAlpha;
 
   function readSettings() {
     return {
       strength: Number(ui.strength.value), size: Number(ui.size.value), speed: Number(ui.speed.value),
       frames: Number(ui.frames.value), complexity: Number(ui.complexity.value), noise: ui.noise.value,
-      seed: Number(ui.seed.value), animate: Boolean(ui.animate.checked), quality: ui.quality.value,
+      seed: Number(ui.seed.value), animate: Boolean(ui.animate.checked),
       useAlpha: Boolean(ui.useAlpha.checked),
     };
   }

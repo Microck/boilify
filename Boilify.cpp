@@ -16,14 +16,8 @@ static OfxPropertySuiteV1* gPropHost = NULL;
 static OfxParameterSuiteV1* gParamHost = NULL;
 static OfxMultiThreadSuiteV1* gThreadHost = NULL;
 
-static constexpr int kQualityFast = 0;
-static constexpr int kQualityHigh = 1;
 static constexpr int kNoiseSmooth = 0;
 static constexpr int kNoiseRidged = 1;
-
-static inline int clampInt(int value, int lo, int hi) {
-    return value < lo ? lo : (value > hi ? hi : value);
-}
 
 static OfxStatus onLoad(void) {
     if (!gHost) return kOfxStatErrMissingHostFeature;
@@ -114,12 +108,6 @@ static OfxStatus describeInContext(OfxImageEffectHandle effect, OfxPropertySetHa
     gPropHost->propSetString(props, kOfxParamPropChoiceOption, 0, "Smooth");
     gPropHost->propSetString(props, kOfxParamPropChoiceOption, 1, "Ridged");
 
-    gParamHost->paramDefine(params, kOfxParamTypeChoice, "quality", &props);
-    gPropHost->propSetString(props, kOfxPropLabel, 0, "Quality");
-    gPropHost->propSetInt(props, kOfxParamPropDefault, 0, kQualityFast);
-    gPropHost->propSetString(props, kOfxParamPropChoiceOption, 0, "Fast");
-    gPropHost->propSetString(props, kOfxParamPropChoiceOption, 1, "High");
-
     gParamHost->paramDefine(params, kOfxParamTypeBoolean, "animate", &props);
     gPropHost->propSetString(props, kOfxPropLabel, 0, "Animate");
     gPropHost->propSetInt(props, kOfxParamPropDefault, 0, 1);
@@ -194,30 +182,6 @@ static float fbm(float x, float y, int seed, int octaves, int noiseType) {
     return (ampSum > 0.0f) ? (sum / ampSum) : 0.0f;
 }
 
-static inline float valueNoiseFast(float x, float y, int seed) {
-    const int xi = fastFloor(x);
-    const int yi = fastFloor(y);
-    return hashFast(xi, yi, seed);
-}
-
-static float fbmPreviewFast(float x, float y, int seed, int octaves, int noiseType) {
-    const int cappedOctaves = clampInt(octaves, 1, 2);
-    float sum = 0.0f;
-    float amp = 1.0f;
-    float ampSum = 0.0f;
-    float freq = 1.0f;
-
-    for (int i = 0; i < cappedOctaves; ++i) {
-        float n = applyNoiseType(valueNoiseFast(x * freq, y * freq, seed + i * 101), noiseType);
-        sum += n * amp;
-        ampSum += amp;
-        amp *= 0.5f;
-        freq *= 2.0f;
-    }
-
-    return (ampSum > 0.0f) ? (sum / ampSum) : 0.0f;
-}
-
 struct RenderArgs {
     OfxImageEffectHandle instance;
     char* srcPtr;
@@ -234,7 +198,6 @@ struct RenderArgs {
     int seedY;
     int complexity;
     int noiseType;
-    int qualityMode;
 };
 
 static void renderSlice(unsigned int threadId, unsigned int nThreads, void* vargs) {
@@ -267,12 +230,8 @@ static void renderSlice(unsigned int threadId, unsigned int nThreads, void* varg
 
             if (alpha > 0.0f) {
                 float nx = (float)dstX * args->invSize;
-                const float fxNoise = (args->qualityMode == kQualityFast)
-                    ? fbmPreviewFast(nx, ny, args->seedX, args->complexity, args->noiseType)
-                    : fbm(nx, ny, args->seedX, args->complexity, args->noiseType);
-                const float fyNoise = (args->qualityMode == kQualityFast)
-                    ? fbmPreviewFast(nx, ny, args->seedY, args->complexity, args->noiseType)
-                    : fbm(nx, ny, args->seedY, args->complexity, args->noiseType);
+                const float fxNoise = fbm(nx, ny, args->seedX, args->complexity, args->noiseType);
+                const float fyNoise = fbm(nx, ny, args->seedY, args->complexity, args->noiseType);
                 float fx = fxNoise * 2.0f - 1.0f;
                 float fy = fyNoise * 2.0f - 1.0f;
                 srcX = x + (int)(fx * args->strength);
@@ -310,26 +269,24 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     OfxParamSetHandle paramSet;
     gEffectHost->getParamSet(instance, &paramSet);
 
-    OfxParamHandle strengthParam, sizeParam, speedParam, seedParam, animateParam, qualityParam;
+    OfxParamHandle strengthParam, sizeParam, speedParam, seedParam, animateParam;
     OfxParamHandle boilFpsParam, complexityParam, noiseParam;
     gParamHost->paramGetHandle(paramSet, "strength", &strengthParam, NULL);
     gParamHost->paramGetHandle(paramSet, "size", &sizeParam, NULL);
     gParamHost->paramGetHandle(paramSet, "speed", &speedParam, NULL);
     gParamHost->paramGetHandle(paramSet, "seed", &seedParam, NULL);
     gParamHost->paramGetHandle(paramSet, "animate", &animateParam, NULL);
-    gParamHost->paramGetHandle(paramSet, "quality", &qualityParam, NULL);
     gParamHost->paramGetHandle(paramSet, "boilFps", &boilFpsParam, NULL);
     gParamHost->paramGetHandle(paramSet, "complexity", &complexityParam, NULL);
     gParamHost->paramGetHandle(paramSet, "noise", &noiseParam, NULL);
 
     double strength, size, speed;
-    int seed, animate, qualityMode, boilFps, complexity, noiseType;
+    int seed, animate, boilFps, complexity, noiseType;
     gParamHost->paramGetValue(strengthParam, &strength);
     gParamHost->paramGetValue(sizeParam, &size);
     gParamHost->paramGetValue(speedParam, &speed);
     gParamHost->paramGetValue(seedParam, &seed);
     gParamHost->paramGetValue(animateParam, &animate);
-    gParamHost->paramGetValue(qualityParam, &qualityMode);
     gParamHost->paramGetValue(boilFpsParam, &boilFps);
     gParamHost->paramGetValue(complexityParam, &complexity);
     gParamHost->paramGetValue(noiseParam, &noiseType);
@@ -379,7 +336,6 @@ static OfxStatus render(OfxImageEffectHandle instance, OfxPropertySetHandle inAr
     args.seedY = seed + stepWrapped * 1013 + 1999;
     args.complexity = complexity < 1 ? 1 : (complexity > 6 ? 6 : complexity);
     args.noiseType = noiseType;
-    args.qualityMode = qualityMode;
 
     if (args.strength <= 0.0001f) {
         for (int y = window.y1; y < window.y2; ++y) {
@@ -431,7 +387,7 @@ static OfxPlugin plugin = {
     1,
     "com.boilify.effect",
     1,
-    6,
+    7,
     setHostFunc,
     pluginMain
 };

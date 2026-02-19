@@ -32,8 +32,6 @@ open `tuner/index.html` in a browser to preview and dial in settings before appl
 
 - multithreaded rendering via OfxMultiThreadSuite
 - scales with cpu cores (4-8x faster on 8+ cores)
-- `fast` quality is optimized for timeline preview
-- `high` quality for final renders
 
 ## settings
 
@@ -47,7 +45,6 @@ open `tuner/index.html` in a browser to preview and dial in settings before appl
 | noise | smooth | `smooth` for classic boil, `ridged` for sharper texture |
 | seed | 0 | random seed. change for different patterns |
 | animate | on | toggle time-based boiling |
-| quality | fast | `fast` for preview, `high` for nicer noise |
 
 transparent pixels are automatically preserved (so graphics/png overlays do not smear into empty alpha).
 
