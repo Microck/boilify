@@ -61,6 +61,18 @@ for each pixel:
 
 frame holds make the motion feel hand-drawn ("line boil") instead of smoothly interpolated.
 
+## troubleshooting
+
+**plugin not showing up on macOS (gatekeeper)**
+
+macOS may quarantine downloaded `.ofx.bundle` files, preventing Resolve from loading them. remove the quarantine attribute:
+
+```bash
+sudo xattr -dr com.apple.quarantine "/Library/OFX/Plugins/Boilify.ofx.bundle"
+```
+
+then restart resolve.
+
 ## build
 
 ```bash
