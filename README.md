@@ -6,9 +6,6 @@
   <p><strong>line boil / hand-drawn jitter OpenFX plugin for DaVinci Resolve Studio 20+</strong></p>
 
   <p>
-    <a href="LICENSE">
-      <img src="https://img.shields.io/badge/license-MIT-000000?style=flat-square" alt="license" />
-    </a>
     <img src="https://img.shields.io/github/downloads/Microck/boilify/total?style=flat-square&color=000000" alt="downloads" />
     <img src="https://img.shields.io/badge/host-davinci%20resolve-000000?style=flat-square" alt="DaVinci Resolve" />
     <img src="https://img.shields.io/badge/build-cmake-000000?style=flat-square" alt="cmake" />
