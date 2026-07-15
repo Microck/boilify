@@ -7,11 +7,12 @@
 
   <p>
     <a href="LICENSE">
-      <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="license" />
+      <img src="https://img.shields.io/badge/license-MIT-000000?style=flat-square" alt="license" />
     </a>
-    <img src="https://img.shields.io/badge/host-davinci%20resolve-111111.svg?style=flat-square" alt="DaVinci Resolve" />
-    <img src="https://img.shields.io/badge/build-cmake-064F8C.svg?style=flat-square" alt="cmake" />
-    <img src="https://img.shields.io/badge/lang-c%2B%2B-00599C.svg?style=flat-square" alt="c++" />
+    <img src="https://img.shields.io/github/downloads/Microck/boilify/total?style=flat-square&color=000000" alt="downloads" />
+    <img src="https://img.shields.io/badge/host-davinci%20resolve-000000?style=flat-square" alt="DaVinci Resolve" />
+    <img src="https://img.shields.io/badge/build-cmake-000000?style=flat-square" alt="cmake" />
+    <img src="https://img.shields.io/badge/lang-c%2B%2B-000000?style=flat-square" alt="c++" />
   </p>
 
   <br />
